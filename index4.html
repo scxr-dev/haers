@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Haers - Secure Space</title>
+    <!-- PRELOAD FONTS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Pretendard:wght@300;400;600;700&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* =========================================
+           THEME VARIABLES & PHYSICS 🎨
+           ========================================= */
+        :root {
+            /* Light Mode (Cream) */
+            --bg: #FDFCF8;
+            --surface: rgba(255, 255, 255, 0.85);
+            --sidebar-bg: rgba(250, 248, 240, 0.95);
+            --accent: #A4C3B2;
+            --accent-hover: #86A895;
+            --text: #4A4A4A;
+            --text-muted: #9CA3AF;
+            --border: rgba(255, 255, 255, 0.8);
+            --radius: 28px;
+            --shadow: 0 20px 50px -12px rgba(164, 195, 178, 0.25);
+            --glass: blur(30px);
+            
+            /* FONTS */
+            --font-main: 'Pretendard', sans-serif;
+            --font-code: 'JetBrains Mono', monospace;
+            --font-cute: 'Gaegu', cursive;
+            
+            /* ANIMATION PHYSICS */
+            --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --smooth: cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            /* Dark Mode (Midnight) */
+            --bg: #1A1B1E;
+            --surface: rgba(30, 30, 35, 0.85);
+            --sidebar-bg: rgba(25, 25, 30, 0.95);
+            --accent: #7E94FA;
+            --accent-hover: #637BF5;
+            --text: #E0E0E0;
+            --text-muted: #888888;
+            --border: rgba(255, 255, 255, 0.08);
+            --shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; transition: background 0.3s, color 0.3s, border-color 0.3s; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-main);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden; /* Prevent body scroll */
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(164, 195, 178, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(126, 148, 250, 0.08) 0%, transparent 40%);
+            overscroll-behavior: none; /* Disables pull-to-refresh on mobile */
+        }
+
+        /* --- THE GLASS CARD (Updated for Mobile) --- */
+        .app-window {
+            width: 1000px;
+            height: 700px;
+            max-width: 95vw;
+            max-height: 95vh;
+            background: var(--surface);
+            backdrop-filter: var(--glass);
+            -webkit-backdrop-filter: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden; 
+            transition: all 0.5s var(--bounce);
+        }
+
+        /* MOBILE OVERRIDES */
+        @media (max-width: 768px) {
+            .app-window {
+                width: 100%;
+                height: 100%;
+                max-width: 100%;
+                max-height: 100%;
+                border-radius: 0;
+                border: none;
+            }
+            h1 { font-size: 2rem; }
+            .mascot { font-size: 3rem; }
+            .drop-zone { padding: 20px; }
+            .toolbar { gap: 4px; overflow-x: auto; padding-bottom: 5px; }
+            .btn-icon { width: 38px; height: 38px; flex-shrink: 0; }
+            #fileNameInput { width: 140px; }
+            .sidebar { width: 85%; } /* Wider sidebar on mobile */
+        }
+
+        .app-window.zen-active {
+            width: 100vw;
+            height: 100vh;
+            border-radius: 0;
+            border: none;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* --- LAYOUT & SCREENS --- */
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 40px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease, transform 0.4s var(--bounce);
+            transform: translateY(20px);
+            z-index: 1;
+        }
+
+        @media (max-width: 768px) {
+            .screen { padding: 20px; }
+        }
+
+        .screen.active {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateY(0);
+            z-index: 2;
+        }
+
+        /* --- SIDEBAR (HISTORY) --- */
+        .sidebar {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 320px;
+            height: 100%;
+            background: var(--sidebar-bg);
+            border-left: 1px solid var(--border);
+            z-index: 20;
+            transform: translateX(100%); 
+            transition: transform 0.4s var(--bounce);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(40px);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+        }
+
+        .sidebar.open { transform: translateX(0); }
+
+        .history-list { flex: 1; overflow-y: auto; margin-top: 15px; overscroll-behavior: contain; }
+        .history-item {
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(0,0,0,0.03);
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .history-item:hover { background: var(--bg); border-color: var(--accent); transform: translateX(-2px); }
+        .history-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .history-preview { font-size: 0.85rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-code); }
+
+        /* --- UI COMPONENTS --- */
+        h1 { font-size: 2.5rem; margin-bottom: 8px; font-weight: 800; letter-spacing: -1.5px; }
+        p.subtitle { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 30px; letter-spacing: 0.5px; }
+
+        .input-box {
+            background: var(--bg);
+            border: 2px solid transparent;
+            padding: 16px 20px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 300px;
+            font-size: 1rem;
+            color: var(--text);
+            margin-bottom: 16px;
+            text-align: center;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+            transition: all 0.3s var(--bounce);
+        }
+        .input-box:focus { background: var(--bg); border-color: var(--accent); transform: scale(1.02); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 99px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s var(--bounce);
+            position: relative;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        .btn:hover { transform: translateY(-4px) scale(1.02); background: var(--accent-hover); box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
+        .btn:active { transform: translateY(2px) scale(0.95); }
+        
+        .btn.secondary { background: transparent; color: var(--text-muted); box-shadow: none; padding: 10px; font-size: 0.9rem; }
+        .btn.secondary:hover { color: var(--accent); transform: translateY(-2px); }
+
+        .btn-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.3s var(--bounce);
+            position: relative;
+            touch-action: manipulation;
+        }
+        .btn-icon:hover { background: var(--accent); color: white; border-color: transparent; transform: rotate(5deg) scale(1.1); }
+        .btn-icon:active { transform: scale(0.9); }
+        .btn-icon.active { background: var(--accent); color: white; border-color: transparent; }
+
+        .badge {
+            position: absolute;
+            top: -5px; right: -5px;
+            background: #E5989B; color: white;
+            font-size: 0.6rem; width: 18px; height: 18px;
+            border-radius: 50%; display: none;
+            align-items: center; justify-content: center;
+            border: 2px solid var(--surface);
+        }
+
+        /* --- GOAL PROGRESS BAR 🌈 --- */
+        .goal-container {
+            width: 100%;
+            height: 4px;
+            background: rgba(0,0,0,0.05);
+            margin-top: 10px;
+            border-radius: 4px;
+            overflow: hidden;
+            display: none; /* Hidden until editor opens */
+        }
+        .goal-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #A4C3B2, #7E94FA, #E5989B);
+            transition: width 0.5s ease;
+        }
+
+        /* --- EDITOR TOOLBAR --- */
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #fileNameInput {
+            font-family: var(--font-main);
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text);
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            padding: 4px 8px;
+            width: 250px;
+            transition: all 0.2s var(--smooth);
+        }
+        #fileNameInput:focus { background: var(--bg); border-color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+
+        .toolbar { display: flex; gap: 8px; }
+
+        /* --- SEARCH BOX --- */
+        .search-box {
+            position: absolute;
+            top: 100px;
+            right: 40px;
+            background: var(--surface);
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+            display: none;
+            z-index: 30;
+            animation: slideDown 0.3s var(--bounce);
+        }
+        .search-box.visible { display: flex; gap: 5px; }
+        .search-input { border: 1px solid var(--border); background: var(--bg); padding: 8px; border-radius: 8px; width: 150px; }
+        @media(max-width: 768px) { .search-box { right: 10px; left: 10px; width: auto; justify-content: center; } .search-input { flex: 1; } }
+        
+        @keyframes slideDown { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* --- TEXT AREA --- */
+        .editor-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            resize: none;
+            font-family: var(--font-code);
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: var(--text);
+            padding-right: 10px;
+            transition: opacity 0.3s, font-size 0.2s ease;
+        }
+        textarea::-webkit-scrollbar { width: 6px; }
+        textarea::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; opacity: 0.5; }
+        textarea::placeholder { color: var(--text-muted); opacity: 0.5; }
+
+        /* --- STATS BAR --- */
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding-top: 15px;
+            border-top: 1px solid var(--border);
+            margin-top: 10px;
+            font-family: var(--font-main);
+            flex-wrap: wrap;
+        }
+
+        /* --- ANIMATIONS --- */
+        .mascot { font-size: 4rem; margin-bottom: 10px; animation: float 3s infinite ease-in-out; cursor: pointer; transition: transform 0.2s; }
+        .mascot:hover { transform: scale(1.1); }
+        .mascot:active { transform: scale(0.9); }
+        
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        
+        .shake { animation: shake 0.4s ease-in-out; border-color: #E5989B !important; }
+        @keyframes shake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-5px);} 75% {transform: translateX(5px);} }
+
+        /* --- DROP ZONE --- */
+        .drop-zone {
+            border: 2px dashed var(--accent);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 20px;
+            opacity: 0.6;
+            cursor: pointer;
+            transition: all 0.3s var(--bounce);
+        }
+        .drop-zone:hover { opacity: 1; background: rgba(164, 195, 178, 0.08); transform: scale(1.02) translateY(-2px); }
+
+        /* --- CANVAS CONFETTI LAYER --- */
+        #confettiCanvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* --- MOBILE HAMBURGER MENU --- */
+        .mobile-menu-btn { display: none; }
+        @media(max-width: 768px) { 
+            .mobile-menu-btn { display: block; } 
+            .desktop-toolbar { display: none; } /* Hide some buttons on mobile to save space */
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- CONFETTI CANVAS -->
+    <canvas id="confettiCanvas"></canvas>
+
+    <div class="app-window" id="app">
+        
+        <!-- SIDEBAR: HISTORY TIME MACHINE 🕰️ -->
+        <div class="sidebar" id="historySidebar">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="font-weight: 700;">Time Machine</h3>
+                <button class="btn-icon" style="width: 30px; height: 30px;" onclick="toggleHistory()">✕</button>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+                Session Snapshots (Swipe Left to Close)
+            </div>
+            <div class="history-list" id="historyList">
+                <div style="text-align: center; color: var(--text-muted); margin-top: 50px;">No history yet...</div>
+            </div>
+            
+            <!-- Backup Info -->
+            <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--text-muted);">
+                <div id="backupStatus">Backup: Idle</div>
+            </div>
+        </div>
+
+        <!-- SCREEN 1: LOCK / HOME -->
+        <div class="screen active" id="lockScreen">
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                <div class="mascot" id="mascot" onclick="pokeMascot()">🐰</div>
+                <h1>Haers</h1>
+                <p class="subtitle">Secure Space v4.0</p>
+
+                <!-- Initial View -->
+                <div id="initView">
+                    <div class="drop-zone" onclick="document.getElementById('fileInput').click()">
+                        📂 Open .hae File
+                    </div>
+                    <button class="btn secondary" onclick="startNew()">+ Create New</button>
+                    <!-- Restore Backup Button (Hidden unless backup found) -->
+                    <button id="restoreBtn" class="btn secondary" style="display: none; color: var(--accent);" onclick="restoreBackup()">♻️ Restore Backup</button>
+                    <input type="file" id="fileInput" hidden accept=".hae">
+                </div>
+
+                <!-- Password View -->
+                <div id="pwdView" style="display: none;">
+                    <input type="password" id="passwordInput" class="input-box" placeholder="Enter Secret Key...">
+                    <br>
+                    <button class="btn" onclick="unlockFile()">Unlock</button>
+                    <br>
+                    <button class="btn secondary" onclick="cancelUnlock()">Cancel</button>
+                </div>
+            </div>
+            
+            <div style="text-align: center; font-size: 0.75rem; color: var(--text-muted); opacity: 0.6;">
+                AES-GCM-256 • Mobile Ready • Touch Enabled
+            </div>
+        </div>
+
+        <!-- SCREEN 2: EDITOR -->
+        <div class="screen" id="editorScreen">
+            <!-- Header Toolbar -->
+            <div class="editor-header">
+                <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                    <div style="font-size: 1.5rem; cursor: default;" id="statusEmoji">📝</div>
+                    <div style="flex: 1;">
+                        <input type="text" id="fileNameInput" value="Untitled.hae" spellcheck="false">
+                    </div>
+                </div>
+
+                <!-- Feature Toggles -->
+                <div class="toolbar">
+                    <button class="btn-icon" title="Toggle Sound (ASMR)" onclick="toggleSound(this)">🔊</button>
+                    <button class="btn-icon desktop-toolbar" title="Toggle Theme" onclick="toggleTheme()">🌗</button>
+                    <button class="btn-icon" title="Toggle Font" onclick="toggleFont()">Aa</button>
+                    <button class="btn-icon desktop-toolbar" title="Search (Ctrl+F)" onclick="toggleSearch()">🔍</button>
+                    <button class="btn-icon" title="Time Machine" onclick="toggleHistory()">
+                        🕰️ <div class="badge" id="historyBadge">0</div>
+                    </button>
+                    <button class="btn-icon" title="Zen Mode" onclick="toggleZen(this)">🧘</button>
+                </div>
+
+                <div style="display: flex; gap: 5px;">
+                    <button class="btn" style="padding: 10px 20px;" onclick="saveFile()">Save</button>
+                    <button class="btn secondary" style="padding: 10px;" onclick="lockApp()">🔒</button>
+                </div>
+            </div>
+            
+            <!-- GOAL PROGRESS BAR -->
+            <div class="goal-container" id="goalBarContainer">
+                <div class="goal-fill" id="goalBar"></div>
+            </div>
+
+            <!-- SEARCH OVERLAY -->
+            <div class="search-box" id="searchBox">
+                <input type="text" id="searchInput" class="search-input" placeholder="Find...">
+                <button class="btn-icon" style="width: 30px; height: 30px;" onclick="findNext()">↓</button>
+                <button class="btn-icon" style="width: 30px; height: 30px;" onclick="toggleSearch()">✕</button>
+            </div>
+
+            <!-- Text Area -->
+            <div class="editor-container">
+                <textarea id="editorText" placeholder="Start writing your story..." spellcheck="false"></textarea>
+            </div>
+
+            <!-- Bottom Stats -->
+            <div class="stats-bar">
+                <span id="statsWords">0 words</span>
+                <span id="statsTime">0 min read</span>
+                <span id="saveStatus" style="color: var(--accent);">Unsaved</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIC SYSTEM (THE BRAIN) -->
+    <script>
+        // --- GLOBAL STATE ---
+        let state = {
+            fileBytes: null,
+            fileName: "Untitled.hae",
+            password: "",
+            soundEnabled: false,
+            fontMode: 0, 
+            isZen: false,
+            history: [],
+            maxHistory: 20,
+            fontSize: 1.1, // em
+            dailyGoal: 500, // words
+            lastBackupTime: 0
+        };
+
+        // --- INIT CHECKS ---
+        window.onload = () => {
+            checkForBackup();
+        };
+
+        // --- AUDIO ENGINE (ASMR) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playThock() {
+            if (!state.soundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(400, t);
+            osc.frequency.exponentialRampToValueAtTime(100, t + 0.05);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.05);
+            
+            // Haptic Feedback for Mobile
+            if(navigator.vibrate) navigator.vibrate(5);
+        }
+
+        // --- PARTICLE ENGINE (CONFETTI) 🎊 ---
+        const cvs = document.getElementById('confettiCanvas');
+        const ctx = cvs.getContext('2d');
+        let particles = [];
+        let animationId = null;
+
+        function resizeCanvas() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.size = Math.random() * 5 + 3;
+                this.speedX = Math.random() * 6 - 3;
+                this.speedY = Math.random() * -5 - 2;
+                this.gravity = 0.2;
+                this.color = `hsl(${Math.random() * 360}, 70%, 70%)`;
+                this.rotation = Math.random() * 360;
+                this.rotationSpeed = Math.random() * 10 - 5;
+            }
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                this.speedY += this.gravity;
+                this.rotation += this.rotationSpeed;
+                if(this.size > 0.1) this.size -= 0.05;
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation * Math.PI / 180);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                ctx.restore();
+            }
+        }
+        function boomConfetti() {
+            for(let i=0; i<100; i++) particles.push(new Particle(cvs.width/2, cvs.height/2));
+            if(!animationId) animateParticles();
+        }
+        function animateParticles() {
+            ctx.clearRect(0, 0, cvs.width, cvs.height);
+            for(let i=0; i<particles.length; i++) {
+                particles[i].update(); particles[i].draw();
+                if(particles[i].size <= 0.1 || particles[i].y > cvs.height) { particles.splice(i, 1); i--; }
+            }
+            if(particles.length > 0) animationId = requestAnimationFrame(animateParticles);
+            else animationId = null;
+        }
+
+        // --- TOUCHPAD & GESTURE ENGINE (NEW!) 👆 ---
+        let touchstartX = 0;
+        let touchstartY = 0;
+        let touchendX = 0;
+        let touchendY = 0;
+
+        document.addEventListener('touchstart', e => {
+            touchstartX = e.changedTouches[0].screenX;
+            touchstartY = e.changedTouches[0].screenY;
+        });
+
+        document.addEventListener('touchend', e => {
+            touchendX = e.changedTouches[0].screenX;
+            touchendY = e.changedTouches[0].screenY;
+            handleGesture();
+        });
+
+        function handleGesture() {
+            const diffX = touchendX - touchstartX;
+            const diffY = touchendY - touchstartY;
+            
+            // Horizontal Swipe Logic (Threshold 50px)
+            if (Math.abs(diffX) > 50 && Math.abs(diffY) < 50) {
+                if (diffX < 0) {
+                    // Swiped Left: Open History (if on editor)
+                    if(document.getElementById('editorScreen').classList.contains('active')) toggleHistory(true);
+                } else {
+                    // Swiped Right: Close History
+                    toggleHistory(false);
+                }
+            }
+        }
+
+        // --- PINCH ZOOM ENGINE (NEW!) 🤏 ---
+        document.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) { // Detects Pinch on Trackpad or Ctrl+Scroll
+                e.preventDefault();
+                if (e.deltaY < 0) state.fontSize += 0.05;
+                else state.fontSize = Math.max(0.5, state.fontSize - 0.05);
+                document.getElementById('editorText').style.fontSize = `${state.fontSize}rem`;
+            }
+        }, { passive: false });
+
+        // --- HISTORY ENGINE (TIME MACHINE) 🕰️ ---
+        function addToHistory(text) {
+            const timestamp = new Date().toLocaleTimeString();
+            state.history.unshift({ time: timestamp, content: text });
+            if (state.history.length > state.maxHistory) state.history.pop();
+            updateHistoryUI();
+        }
+
+        function updateHistoryUI() {
+            const list = document.getElementById('historyList');
+            const badge = document.getElementById('historyBadge');
+            badge.innerText = state.history.length;
+            badge.style.display = state.history.length > 0 ? 'flex' : 'none';
+
+            if(state.history.length === 0) {
+                list.innerHTML = '<div style="text-align: center; color: var(--text-muted); margin-top: 50px;">No history yet...</div>';
+                return;
+            }
+
+            list.innerHTML = '';
+            state.history.forEach((snap, idx) => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <div class="history-meta"><span>${snap.time}</span><span>v${state.history.length - idx}</span></div>
+                    <div class="history-preview">${snap.content.substring(0, 30) || "(Empty)"}...</div>
+                `;
+                div.onclick = () => restoreHistory(idx);
+                list.appendChild(div);
+            });
+        }
+
+        function restoreHistory(idx) {
+            const snap = state.history[idx];
+            if(confirm(`Restore version from ${snap.time}?`)) {
+                document.getElementById('editorText').value = snap.content;
+                toggleHistory(false);
+                updateStats();
+            }
+        }
+
+        function toggleHistory(forceOpen = null) {
+            const sb = document.getElementById('historySidebar');
+            if (forceOpen === true) sb.classList.add('open');
+            else if (forceOpen === false) sb.classList.remove('open');
+            else sb.classList.toggle('open');
+        }
+
+        // --- FEATURE LOGIC ---
+        function toggleSound(btn) {
+            state.soundEnabled = !state.soundEnabled;
+            btn.classList.toggle('active');
+            btn.innerText = state.soundEnabled ? '🔊' : '🔇';
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            const isDark = body.getAttribute('data-theme') === 'dark';
+            body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+        }
+
+        function toggleFont() {
+            const area = document.getElementById('editorText');
+            state.fontMode = (state.fontMode + 1) % 3;
+            if (state.fontMode === 0) area.style.fontFamily = "var(--font-code)";
+            else if (state.fontMode === 1) area.style.fontFamily = "var(--font-main)";
+            else area.style.fontFamily = "var(--font-cute)";
+        }
+
+        function toggleZen(btn) {
+            state.isZen = !state.isZen;
+            const app = document.getElementById('app');
+            const header = document.querySelector('.editor-header');
+            const stats = document.querySelector('.stats-bar');
+            app.classList.toggle('zen-active');
+            btn.classList.toggle('active');
+            if (state.isZen) {
+                header.style.opacity = '0.1';
+                stats.style.display = 'none';
+            } else {
+                header.style.opacity = '1';
+                stats.style.display = 'flex';
+            }
+        }
+
+        // --- SEARCH ENGINE ---
+        function toggleSearch() {
+            const box = document.getElementById('searchBox');
+            box.classList.toggle('visible');
+            if(box.classList.contains('visible')) document.getElementById('searchInput').focus();
+        }
+
+        function findNext() {
+            const query = document.getElementById('searchInput').value;
+            const ta = document.getElementById('editorText');
+            if(!query) return;
+            const text = ta.value;
+            const startPos = ta.selectionStart + 1; 
+            let index = text.toLowerCase().indexOf(query.toLowerCase(), startPos);
+            if(index === -1) index = text.toLowerCase().indexOf(query.toLowerCase(), 0);
+            if(index !== -1) {
+                ta.focus();
+                ta.setSelectionRange(index, index + query.length);
+            } else { alert("Not found! 🐰"); }
+        }
+
+        // --- UI CORE ---
+        function pokeMascot() {
+            const m = document.getElementById('mascot');
+            m.innerText = m.innerText === '🐰' ? '🥕' : '🐰';
+        }
+
+        const nameInput = document.getElementById('fileNameInput');
+        nameInput.addEventListener('input', (e) => state.fileName = e.target.value);
+        nameInput.addEventListener('blur', () => {
+            if (!state.fileName.trim()) state.fileName = "Untitled.hae";
+            if (!state.fileName.includes('.')) state.fileName += ".hae";
+            nameInput.value = state.fileName;
+        });
+
+        // Stats, Thock, Backup & Goal Trigger
+        document.getElementById('editorText').addEventListener('input', () => {
+            updateStats();
+            performAutoBackup();
+        });
+        
+        function updateStats() {
+            const text = document.getElementById('editorText').value;
+            const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+            const charCount = text.length;
+            const readTime = Math.ceil(wordCount / 200);
+
+            document.getElementById('statsWords').innerText = `${wordCount} words`;
+            document.getElementById('statsTime').innerText = `${readTime} min read`;
+            document.getElementById('saveStatus').innerText = 'Unsaved...';
+            
+            // Goal Logic
+            const percent = Math.min((wordCount / state.dailyGoal) * 100, 100);
+            document.getElementById('goalBar').style.width = `${percent}%`;
+            if (percent > 0) document.getElementById('goalBarContainer').style.display = 'block';
+
+            playThock();
+        }
+
+        // --- LOCAL BACKUP ENGINE (NEW!) 💾 ---
+        async function performAutoBackup() {
+            const now = Date.now();
+            if (now - state.lastBackupTime < 5000) return; // Only backup every 5s
+            
+            const text = document.getElementById('editorText').value;
+            if (text.length < 5) return;
+            
+            // We save the ENCRYPTED version if we have password, or plaintext if unsafe (no, must be safe).
+            // Actually, for recovery, we save a temporary encrypted blob to localStorage.
+            if(state.password) {
+                try {
+                    const blobData = await encryptData(text, state.password);
+                    // Convert blob to base64 for storage
+                    const reader = new FileReader();
+                    reader.readAsDataURL(new Blob([blobData]));
+                    reader.onloadend = function() {
+                        const base64data = reader.result;
+                        localStorage.setItem('haers_backup', base64data);
+                        localStorage.setItem('haers_backup_time', now);
+                        document.getElementById('backupStatus').innerText = 'Backup: ' + new Date().toLocaleTimeString();
+                    }
+                    state.lastBackupTime = now;
+                } catch(e) { console.error("Backup failed", e); }
+            }
+        }
+        
+        function checkForBackup() {
+            const backup = localStorage.getItem('haers_backup');
+            if(backup) {
+                document.getElementById('restoreBtn').style.display = 'inline-block';
+            }
+        }
+        
+        async function restoreBackup() {
+            const backupBase64 = localStorage.getItem('haers_backup');
+            if(!backupBase64) return;
+            
+            // Need password to decrypt backup
+            const pwd = prompt("Enter password to unlock recovery backup:");
+            if(!pwd) return;
+            
+            try {
+                // Base64 back to ArrayBuffer
+                const res = await fetch(backupBase64);
+                const blob = await res.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                
+                const text = await decryptData(arrayBuffer, pwd);
+                state.password = pwd;
+                startNew(); // Setup UI
+                document.getElementById('editorText').value = text;
+                switchScreen('editorScreen');
+                alert("Backup restored! Please save to file immediately.");
+            } catch(e) {
+                alert("Wrong password for backup recovery.");
+            }
+        }
+
+        // --- CRYPTO CORE ---
+        async function generateKey(pwd, salt) {
+            const enc = new TextEncoder();
+            const keyMaterial = await window.crypto.subtle.importKey("raw", enc.encode(pwd), {name:"PBKDF2"}, false, ["deriveKey"]);
+            return window.crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:100000, hash:"SHA-256"}, keyMaterial, {name:"AES-GCM", length:256}, false, ["encrypt", "decrypt"]);
+        }
+        async function encryptData(text, pwd) {
+            const salt = window.crypto.getRandomValues(new Uint8Array(16));
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const key = await generateKey(pwd, salt);
+            const enc = new TextEncoder();
+            const encrypted = await window.crypto.subtle.encrypt({name:"AES-GCM", iv}, key, enc.encode(text));
+            const blob = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+            blob.set(salt, 0); blob.set(iv, 16); blob.set(new Uint8Array(encrypted), 28);
+            return blob;
+        }
+        async function decryptData(buffer, pwd) {
+            try {
+                const arr = new Uint8Array(buffer);
+                const salt = arr.slice(0, 16); const iv = arr.slice(16, 28); const data = arr.slice(28);
+                const key = await generateKey(pwd, salt);
+                const dec = await window.crypto.subtle.decrypt({name:"AES-GCM", iv}, key, data);
+                return new TextDecoder().decode(dec);
+            } catch { throw new Error("Bad Key"); }
+        }
+
+        // --- APP FLOW ---
+        function switchScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function startNew() {
+            state.fileBytes = null;
+            state.fileName = "MySecret.hae";
+            nameInput.value = state.fileName;
+            state.history = []; 
+            updateHistoryUI();
+            showPwdInput();
+        }
+
+        function showPwdInput() {
+            document.getElementById('initView').style.display = 'none';
+            document.getElementById('pwdView').style.display = 'block';
+            document.getElementById('mascot').innerText = '🔒';
+            document.getElementById('passwordInput').focus();
+        }
+
+        function cancelUnlock() {
+            document.getElementById('pwdView').style.display = 'none';
+            document.getElementById('initView').style.display = 'block';
+            document.getElementById('mascot').innerText = '🐰';
+            document.getElementById('passwordInput').value = '';
+        }
+
+        async function unlockFile() {
+            const pwd = document.getElementById('passwordInput').value;
+            if(!pwd) return;
+
+            try {
+                document.getElementById('mascot').innerText = '⏳';
+                if(state.fileBytes) {
+                    const text = await decryptData(state.fileBytes, pwd);
+                    document.getElementById('editorText').value = text;
+                } else {
+                    document.getElementById('editorText').value = "";
+                }
+                state.password = pwd;
+                nameInput.value = state.fileName;
+                document.getElementById('saveStatus').innerText = 'Secure Session';
+                switchScreen('editorScreen');
+                document.getElementById('mascot').innerText = '🐰';
+                
+                addToHistory(document.getElementById('editorText').value);
+                
+            } catch(e) {
+                document.getElementById('mascot').innerText = '💢';
+                const input = document.getElementById('passwordInput');
+                input.classList.add('shake');
+                setTimeout(()=>input.classList.remove('shake'), 500);
+            }
+        }
+
+        async function saveFile() {
+            state.fileName = nameInput.value;
+            const text = document.getElementById('editorText').value;
+            
+            addToHistory(text);
+            const blobData = await encryptData(text, state.password);
+            const blob = new Blob([blobData], {type: "application/octet-stream"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = state.fileName;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            
+            document.getElementById('saveStatus').innerText = 'Saved to Disk';
+            document.getElementById('statusEmoji').innerText = '💾';
+            setTimeout(() => document.getElementById('statusEmoji').innerText = '📝', 2000);
+            
+            boomConfetti();
+        }
+
+        function lockApp() {
+            state.password = "";
+            document.getElementById('editorText').value = ""; 
+            state.history = []; 
+            updateHistoryUI();
+            cancelUnlock();
+            switchScreen('lockScreen');
+        }
+
+        // --- SHORTCUTS & EVENTS ---
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') lockApp();
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); toggleSearch(); }
+        });
+
+        // Drag & Drop
+        const dz = document.querySelector('.drop-zone');
+        document.body.addEventListener('dragover', e => e.preventDefault());
+        document.body.addEventListener('drop', e => {
+            e.preventDefault();
+            if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+        document.getElementById('fileInput').addEventListener('change', e => {
+            if(e.target.files[0]) handleFile(e.target.files[0]);
+        });
+        async function handleFile(file) {
+            state.fileName = file.name;
+            state.fileBytes = await file.arrayBuffer();
+            showPwdInput();
+        }
+
+    </script>
+</body>
+</html>
